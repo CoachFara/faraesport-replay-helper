@@ -26,6 +26,7 @@ import urllib.request
 from pathlib import Path
 
 REPLAY_API = "https://127.0.0.1:2999/replay/playback"
+GAME_EXE = "League of Legends.exe"
 BUILD_RE = re.compile(rb"\d+\.\d+\.\d+\.\d+")
 RIOT_DATA = Path(r"C:\ProgramData\Riot Games")
 CLIENT_FOLDERS = Path.home() / "AppData" / "Local" / "FaraEsport" / "client_folders.txt"
@@ -66,8 +67,14 @@ def exe_build(exe: Path) -> str | None:
     return f"{ms >> 16}.{ms & 0xFFFF}.{ls >> 16}.{ls & 0xFFFF}"
 
 
+def game_dir(install: Path) -> Path:
+    """Folder holding the game exe: Game\\ in a full install, or the folder
+    itself when only the Game folder was backed up."""
+    return install / "Game" if (install / "Game" / GAME_EXE).exists() else install
+
+
 def is_client(d: Path) -> bool:
-    return (d / "Game" / "League of Legends.exe").exists()
+    return (game_dir(d) / GAME_EXE).exists()
 
 
 def backup_clients() -> list[Path]:
@@ -123,7 +130,7 @@ def install_dirs() -> list[Path]:
 
 def pick_install(build: str, override: Path | None) -> Path:
     candidates = [override] if override else install_dirs()
-    builds = {d: exe_build(d / "Game" / "League of Legends.exe") for d in candidates}
+    builds = {d: exe_build(game_dir(d) / GAME_EXE) for d in candidates}
     for d, b in builds.items():
         if b == build:
             return d
@@ -165,7 +172,6 @@ def api(payload: dict | None = None) -> dict | None:
         return None
 
 
-GAME_EXE = "League of Legends.exe"
 # No console window flashing up when the packaged (windowed) helper shells out.
 _NO_WINDOW = 0x08000000
 
@@ -235,7 +241,7 @@ def close_replay(timeout: float = 20) -> None:
 
 def launch_command(rofl: Path, install: Path) -> list[str]:
     return [
-        str(install / "Game" / "League of Legends.exe"),
+        str(game_dir(install) / GAME_EXE),
         str(rofl),
         f"-GameBaseDir={install}",
         "-SkipRads",
@@ -250,7 +256,7 @@ def open_replay(rofl: Path, seconds: float, league_dir: Path | None = None, time
     """Launch `rofl` on its matching client and seek to `seconds`. Returns the landed time."""
     install = pick_install(rofl_build(rofl), league_dir)
     enable_replay_api(install)
-    subprocess.Popen(launch_command(rofl, install), cwd=install / "Game")
+    subprocess.Popen(launch_command(rofl, install), cwd=game_dir(install))
     wait_for_replay(timeout)
     return seek(seconds)
 

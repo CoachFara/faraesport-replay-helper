@@ -81,7 +81,7 @@ def add_clients(folder: Path) -> None:
     clients = rp.add_client_folder(folder)
     if not clients:
         return report(f"No League client found in {folder}")
-    lines = "\n".join(f"{rp.exe_build(c / 'Game' / rp.GAME_EXE) or '?'}   {c}" for c in clients)
+    lines = "\n".join(f"{rp.exe_build(rp.game_dir(c) / rp.GAME_EXE) or '?'}   {c}" for c in clients)
     ctypes.windll.user32.MessageBoxW(None, f"Clients added:\n\n{lines}", "FaraEsport replay", 0x40)
 
 
@@ -121,8 +121,10 @@ def cached_replay(match_id: str, api: str, token: str | None) -> Path:
     url = f"{api}/matches/{urllib.parse.quote(match_id)}/replay"
     if token:
         url += "?" + urllib.parse.urlencode({"token": token})
+    # Cloudflare in front of the API rejects urllib's default User-Agent (error 1010 -> 403).
+    request = urllib.request.Request(url, headers={"User-Agent": "FaraEsportReplay"})
     try:
-        with urllib.request.urlopen(url, timeout=180) as r:
+        with urllib.request.urlopen(request, timeout=180) as r:
             data = r.read()
     except urllib.error.HTTPError as exc:
         try:
